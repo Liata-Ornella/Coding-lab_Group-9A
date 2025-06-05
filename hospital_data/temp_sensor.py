@@ -3,54 +3,93 @@ import time
 import sys
 import os
 from datetime import datetime
+import psutil
+import atexit
 
-# Directory and file configuration
-LOG_DIR = "active_logs"
-LOG_FILE = os.path.join(LOG_DIR, "temperature_log.log")
-PID_FILE = "/tmp/temperature_recorder.pid"
-DEVICES = ["Temp_Recorder_A", "Temp_Recorder_B"]
+class TempSensorDaemon:
+    def __init__(self):
+        self.LOG_DIR = "hospital_data/active_logs"
+        self.LOG_FILE = os.path.join(self.LOG_DIR, "temperature.log")
+        self.PID_FILE = os.path.join(self.LOG_DIR, "temp_sensor.pid")
+        self.DEVICES = ["TEMP-01", "TEMP-02"]
+        
+    def ensure_log_dir(self):
+        if not os.path.exists(self.LOG_DIR):
+            os.makedirs(self.LOG_DIR)
 
-def ensure_log_dir():
-    if not os.path.exists(LOG_DIR):
-        os.makedirs(LOG_DIR)
+    def log_data(self):
+        self.ensure_log_dir()
+        while True:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            for device in self.DEVICES:
+                temp = round(random.uniform(36.0, 39.5), 1)
+                with open(self.LOG_FILE, "a") as f:
+                    f.write(f"{timestamp} {device} Temperature: {temp}°C\n")
+            time.sleep(1)
 
-def log_data():
-    ensure_log_dir()
-    while True:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        for device in DEVICES:
-            temp = round(random.uniform(36.0, 39.5), 1)
-            with open(LOG_FILE, "a") as f:
-                f.write(f"{timestamp} {device} {temp}\n")
-        time.sleep(1)
+    def start(self):
+        if self.is_running():
+            print("Temperature sensor daemon is already running!")
+            return
+            
+        with open(self.PID_FILE, "w") as f:
+            f.write(str(os.getpid()))
+            
+        print(f"Temperature sensor daemon started. PID: {os.getpid()}")
+        self.log_data()
 
-def start():
-    pid = os.fork()
-    if pid > 0:
-        with open(PID_FILE, "w") as f:
-            f.write(str(pid))
-        print(f"Started. PID: {pid}")
-    else:
-        log_data()
+    def stop(self):
+        if not self.is_running():
+            print("Temperature sensor daemon is not running!")
+            return
+            
+        pid = self.get_pid()
+        try:
+            process = psutil.Process(pid)
+            process.terminate()
+            process.wait()
+            os.remove(self.PID_FILE)
+            print("Temperature sensor daemon stopped successfully.")
+        except psutil.NoSuchProcess:
+            print("Process already terminated.")
+            if os.path.exists(self.PID_FILE):
+                os.remove(self.PID_FILE)
 
-def stop():
-    if os.path.exists(PID_FILE):
-        with open(PID_FILE, "r") as f:
-            pid = int(f.read().strip())
-        os.kill(pid, 9)
-        os.remove(PID_FILE)
-        print("Stopped.")
-    else:
-        print("No running process found.")
+    def is_running(self):
+        if not os.path.exists(self.PID_FILE):
+            return False
+            
+        pid = self.get_pid()
+        try:
+            process = psutil.Process(pid)
+            return True
+        except psutil.NoSuchProcess:
+            return False
+            
+    def get_pid(self):
+        with open(self.PID_FILE, "r") as f:
+            return int(f.read().strip())
 
-if __name__ == "__main__":
+    def cleanup(self):
+        if os.path.exists(self.PID_FILE):
+            os.remove(self.PID_FILE)
+
+def main():
+    daemon = TempSensorDaemon()
+    atexit.register(daemon.cleanup)
+    
     if len(sys.argv) < 2:
-        print("Usage: python3 temperature_recorder.py [start|stop]")
+        print("Usage: python temp_sensor_daemon.py [start|stop]")
         sys.exit(1)
     
-    if sys.argv[1] == "start":
-        start()
-    elif sys.argv[1] == "stop":
-        stop()
+    command = sys.argv[1]
+    if command == "start":
+        daemon.start()
+    elif command == "stop":
+        daemon.stop()
     else:
-        print("Invalid command. Use 'start' or 'stop'.")
+        print("Invalid command. Use 'start' or 'stop'")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

@@ -14,7 +14,20 @@ LOG_FILES=(
 
 # Function to get current timestamp
 get_timestamp() {
-    date +"%Y-%m-%d_%H:%M:%S"
+    date +"%Y-%m-%d_%H-%M-%S"
+}
+
+# Function to show help
+show_help() {
+    echo "Usage:"
+    echo "./archive_logs_advanced.sh [1|2|3]"
+    echo ""
+    echo "Options:"
+    echo "1 - Archive Heart Rate log"
+    echo "2 - Archive Temperature log"
+    echo "3 - Archive Water Usage log"
+    echo ""
+    echo "If no argument is provided, interactive mode will be used."
 }
 
 # Function to archive a log file
@@ -44,22 +57,47 @@ archive_log() {
     touch "$active_log"
     
     echo "Successfully archived to $archive_file"
+    return 0
 }
 
 # Main script
+if [ $# -eq 1 ]; then
+    # Command-line argument provided
+    if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+        show_help
+        exit 0
+    fi
+    
+    if [[ $1 =~ ^[1-3]$ ]]; then
+        archive_log "$1"
+        exit $?
+    else
+        echo "Invalid argument. Use -h or --help for usage."
+        exit 1
+    fi
+fi
+
+# Interactive mode
 while true; do
-    echo "Select log to archive:" 
+    echo "\nSelect log to archive:"
     for log in "${LOG_TYPES[@]}"; do
         echo "$log"
     done
+    echo "q) Quit"
     
-    read -p "Enter choice (1-3): " choice
+    read -p "Enter your choice: " choice
     
-    # Validate input
-    if [[ $choice =~ ^[1-3]$ ]]; then
-        archive_log $choice
-        break
-    else
-        echo "Invalid choice. Please enter a number between 1 and 3."
-    fi
+    case $choice in
+        1|2|3)
+            if archive_log "$choice"; then
+                break
+            fi
+            ;;
+        q)
+            exit 0
+            ;;
+        *)
+            echo "Invalid choice. Please enter a number between 1 and 3 or 'q' to quit."
+            ;;
+    esac
 done

@@ -1,103 +1,54 @@
 #!/bin/bash
 
-# Define log types and their corresponding files
-LOG_TYPES=(
-    "1) Heart Rate"
-    "2) Temperature"
-    "3) Water Usage"
-)
-LOG_FILES=(
-    "heart_rate.log"
-    "temperature.log"
-    "water_usage.log"
-)
+# Ensure script has execution permissions
+chmod +x "$0"
+
+# Directory paths
+ACTIVE_LOGS_DIR="hospital_data/active_logs"
+ARCHIVE_DIR="hospital_data/archive"
+
+# Create directories if they don't exist
+mkdir -p "$ACTIVE_LOGS_DIR" "$ARCHIVE_DIR"
 
 # Function to get current timestamp
 get_timestamp() {
-    date +"%Y-%m-%d_%H-%M-%S"
+    date +"%Y-%m-%d_%H:%M:%S"
 }
 
-# Function to show help
-show_help() {
-    echo "Usage:"
-    echo "./archive_logs_advanced.sh [1|2|3]"
-    echo ""
-    echo "Options:"
-    echo "1 - Archive Heart Rate log"
-    echo "2 - Archive Temperature log"
-    echo "3 - Archive Water Usage log"
-    echo ""
-    echo "If no argument is provided, interactive mode will be used."
-}
+# Main menu
+echo "Select log to archive:"
+echo "1) Heart Rate"
+echo "2) Temperature"
+echo "3) Water Usage"
 
-# Function to archive a log file
-archive_log() {
-    local choice=$1
-    local log_file=${LOG_FILES[$choice-1]}
-    local active_log="hospital_data/active_logs/$log_file"
-    local archive_dir="hospital_data/archive"
-    local timestamp=$(get_timestamp)
-    
-    # Check if log file exists
-    if [ ! -f "$active_log" ]; then
-        echo "Error: Log file $active_log not found"
-        return 1
-    fi
-    
-    # Create archive directory if it doesn't exist
-    mkdir -p "$archive_dir"
-    
-    # Create new archive filename with timestamp
-    local archive_file="$archive_dir/${log_file%.*}_$timestamp.log"
-    
-    # Move and rename the log file
-    mv "$active_log" "$archive_file"
-    
-    # Create new empty log file
-    touch "$active_log"
-    
-    echo "Successfully archived to $archive_file"
-    return 0
-}
+read -p "Enter choice (1-3): " choice
 
-# Main script
-if [ $# -eq 1 ]; then
-    # Command-line argument provided
-    if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-        show_help
-        exit 0
-    fi
-    
-    if [[ $1 =~ ^[1-3]$ ]]; then
-        archive_log "$1"
-        exit $?
-    else
-        echo "Invalid argument. Use -h or --help for usage."
-        exit 1
-    fi
+# Validate input
+if [[ ! $choice =~ ^[1-3]$ ]]; then
+    echo "Error: Invalid choice. Please enter a number between 1 and 3."
+    exit 1
 fi
 
-# Interactive mode
-while true; do
-    echo "\nSelect log to archive:"
-    for log in "${LOG_TYPES[@]}"; do
-        echo "$log"
-    done
-    echo "q) Quit"
-    
-    read -p "Enter your choice: " choice
-    
-    case $choice in
-        1|2|3)
-            if archive_log "$choice"; then
-                break
-            fi
-            ;;
-        q)
-            exit 0
-            ;;
-        *)
-            echo "Invalid choice. Please enter a number between 1 and 3 or 'q' to quit."
-            ;;
-    esac
-done
+# Determine log type and file name
+LOG_TYPES=("heart_rate" "temperature" "water_usage")
+LOG_TYPE=${LOG_TYPES[$((choice-1))]}_log.log
+ACTIVE_LOG="$ACTIVE_LOGS_DIR/$LOG_TYPE"
+
+# Check if log file exists
+if [ ! -f "$ACTIVE_LOG" ]; then
+    echo "Error: Log file $LOG_TYPE not found in active logs directory."
+    exit 1
+fi
+
+# Create timestamp for archive
+TIMESTAMP=$(get_timestamp)
+ARCHIVE_FILE="$ARCHIVE_DIR/${LOG_TYPE%.log}_$TIMESTAMP.log"
+
+# Move active log to archive
+echo "Archiving $LOG_TYPE..."
+mv "$ACTIVE_LOG" "$ARCHIVE_FILE"
+
+# Create new empty log file
+touch "$ACTIVE_LOG"
+
+echo "Successfully archived to $ARCHIVE_FILE"
